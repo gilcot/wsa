@@ -60,23 +60,14 @@ _there=$( echo "$_where" |
 
 if test -z "$WORDLE_LIST"
 then
-    WORDLE_LIST="/tmp/words5letters"
-    if test -f "$WORDLE_LIST"
-    then
-        :
-    else
-        _dict=''
-        for _file in american-english words
-        do
-            _dict="/usr/share/dict/$_file"
-            if test -f "$_dict"
-            then
-                grep -Ew '[a-z]{5}' "$_dict" > "$WORDLE_LIST"
-                break
-            fi
-        done
-        unset _dict
-    fi
+    for _file in american-english words
+    do
+        WORDLE_LIST="/usr/share/dict/$_file"
+        if test -f "$WORDLE_LIST"
+        then
+            break
+        fi
+    done
 fi
 if ! test -r "$WORDLE_LIST"
 then
