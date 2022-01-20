@@ -44,6 +44,7 @@ Note that:
     system global dictionary which also contains names with title-case. That
     leads to some strange results that cannot be easely fixed.
   - You may use `-d` to display some internal informations before the results.
+  - Results are often shuffled. Use `-s` to sort them alphabetically.
 
 By the same way, you can change the number of propositions displayed with
 the environment variable `WORDLE_SHOW`.

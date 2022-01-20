@@ -9,16 +9,20 @@
 # $2: guess with misplaced (yellow) letters
 # $3: excluded (gray) letters list
 
-_flagI='s'
 _flagD='0'
-while getopts 'DIdi' _opt
+_flagI='s'
+_flagS='R'
+while getopts 'DISdis' _opt
 do
     case $_opt in
         [iI]) _flagI='is' ;;
         [dD]) _flagD='1' ;;
+        [sS]) _flagS='d' ;;
     esac
 done
 shift $((OPTIND -1))
+test "$_flagI" = 'is' &&
+    _flagS="f$_flagS"
 
 if test $# -lt 2
 then
@@ -99,7 +103,11 @@ _infos()
         echo "[INFO] using: $(wc -l "$WORDLE_LIST")"
         test -n "$2" &&
             echo "[INFO] scenario: $2"
-        echo "next trial candidates:"
+        printf "[INFO] max results limit count:\t%d\t" "$WORDLE_SHOW"
+        case $_flagS in
+            fR|R) echo "Random" ;;
+            fd|d) echo "Sorted" ;;
+        esac
     fi
 }
 
@@ -120,18 +128,19 @@ then
     _avoid='zxqj'
     _infos "$_start [$_there] [^$_avoid]" 'nothing yet'
     # It's not mentionned, but we also avoid consecutive letters
-    grep -w$_flagI "$_start" "$WORDLE_LIST" |
+    sort -b$_flagS "$WORDLE_LIST" |
+        grep -w$_flagI "$_start" |
         grep -isv "[$_avoid]" |
         grep -Eisv '.*([a-z])\1.*' |
-        grep -$_flagI "[$_there]" |
-        sort -fR | head -n $WORDLE_SHOW
+        grep -$_flagI -m $WORDLE_SHOW "[$_there]"
     # Note: `shuf` isn't POSIX so we go with `sort` and `head`
 elif test -n "$_there" &&
     test -n "$_avoid"
 then
     # Case of second and following generic attempts
     _infos "$_start $_where [$_there] [^$_avoid]" 'green yellow gray'
-    grep -w$_flagI "$_start" "$WORDLE_LIST" |
+    sort -b$_flagS "$WORDLE_LIST" |
+        grep -w$_flagI "$_start" |
         grep -isv "[$_avoid]" | grep -$_flagI "[$_there]" |
         grep -is -m $WORDLE_SHOW "$_where"
 elif test ${#_there} -eq 5 &&
@@ -147,7 +156,8 @@ elif test ${#_avoid} -eq 5 &&
 then
     # We have only invalid letters, so rerun avoiding them.
     _infos "$_start [^$_avoid]" 'gray only'
-    grep -v$_flagI "[$_avoid]" "$WORDLE_LIST" |
+    sort -b$_flagS "$WORDLE_LIST" |
+        grep -v$_flagI "[$_avoid]" |
         grep -w$_flagI -m $WORDLE_SHOW "$_start"
 elif echo "$_start" | grep -qsv -f '.' &&
     test "$_avoid" = "$_there"
