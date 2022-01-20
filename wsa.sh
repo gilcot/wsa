@@ -9,6 +9,17 @@
 # $2: guess with misplaced (yellow) letters
 # $3: excluded (gray) letters list
 
+_flagI='s'
+_flagD='0'
+while getopts 'DIdi' _opt
+do
+    case $_opt in
+        [iI]) _flagI='is' ;;
+        [dD]) _flagD='1' ;;
+    esac
+done
+shift $((OPTIND -1))
+
 if test $# -lt 2
 then
     echo "Please enter your guess but with only correctly placed letters."
@@ -82,11 +93,14 @@ fi
 
 _infos()
 {
-    echo "[INFO] seeking: $1"
-    echo "[INFO] using: $(wc -l "$WORDLE_LIST")"
-    test -n "$2" &&
-        echo "[INFO] scenario: $2"
-    echo "next trial candidates:"
+    if test $((_flagD)) -gt 0
+    then
+        echo "[INFO] seeking: $1"
+        echo "[INFO] using: $(wc -l "$WORDLE_LIST")"
+        test -n "$2" &&
+            echo "[INFO] scenario: $2"
+        echo "next trial candidates:"
+    fi
 }
 
 if test "$_start" = "$_where" &&
@@ -106,10 +120,10 @@ then
     _avoid='zxqj'
     _infos "$_start [$_there] [^$_avoid]" 'nothing yet'
     # It's not mentionned, but we also avoid consecutive letters
-    grep -isw "$_start" "$WORDLE_LIST" |
+    grep -w$_flagI "$_start" "$WORDLE_LIST" |
         grep -isv "[$_avoid]" |
         grep -Eisv '.*([a-z])\1.*' |
-        grep -is "[$_there]" |
+        grep -$_flagI "[$_there]" |
         sort -fR | head -n $WORDLE_SHOW
     # Note: `shuf` isn't POSIX so we go with `sort` and `head`
 elif test -n "$_there" &&
@@ -117,30 +131,30 @@ elif test -n "$_there" &&
 then
     # Case of second and following generic attempts
     _infos "$_start $_where [$_there] [^$_avoid]" 'green yellow gray'
-    grep -isw "$_start" "$WORDLE_LIST" |
-        grep -isv "[$_avoid]" | grep -is "[$_there]" |
+    grep -w$_flagI "$_start" "$WORDLE_LIST" |
+        grep -isv "[$_avoid]" | grep -$_flagI "[$_there]" |
         grep -is -m $WORDLE_SHOW "$_where"
 elif test ${#_there} -eq 5 &&
     test -z "$_avoid"
 then
     # We have only misplaced letters, so let's focus on them.
     _infos "$_start $_where [$_there]" 'yellow only'
-    grep -isw "$_start" "$WORDLE_LIST" |
-        grep -is "[$_there]" |
+    grep -w$_flagI "$_start" "$WORDLE_LIST" |
+        grep -$_flagI "[$_there]" |
         grep -is -m $WORDLE_SHOW "$_where"
 elif test ${#_avoid} -eq 5 &&
     test -z "$_there"
 then
     # We have only invalid letters, so rerun avoiding them.
     _infos "$_start [^$_avoid]" 'gray only'
-    grep -isv "[$_avoid]" "$WORDLE_LIST" |
-        grep -isw -m $WORDLE_SHOW "$_start"
+    grep -v$_flagI "[$_avoid]" "$WORDLE_LIST" |
+        grep -w$_flagI -m $WORDLE_SHOW "$_start"
 elif echo "$_start" | grep -qsv -f '.' &&
     test "$_avoid" = "$_there"
 then
     # Really? Aren't you kidding the script?
     _infos "$_start" 'green only'
-    grep -isw "$_start" -m $WORDLE_SHOW "$WORDLE_LIST"
+    grep -w$_flagI "$_start" -m $WORDLE_SHOW "$WORDLE_LIST"
 else
     # Hmm, this part shouldn't never be reached. Debug is needed.
     _infos "$_start/$_where/$_there/$_avoid" 'unknown'

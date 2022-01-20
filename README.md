@@ -23,24 +23,33 @@ In both case, ensure the script is in your path (i.e. `~/bin` here.)
 
 The script uses three arguments:
 
-  1. Well placed letters, e.g `BA---` after the second try
-  2. Misplaced letters, e.g `--L--` or `A----` after the second or first try
+  1. Well placed letters, e.g `BA...` after the second try
+  2. Misplaced letters, e.g `..L..` or `A....` after the second or first try
   3. The list of letters that don't exist in the word, e.g `CRES` at first try
 
 When launched without one of the arguments, it swithes to interactively
 inputing them.
 
-If you want to use your restricted words list, put it's path into the
-environment variable `WORDLE_LIST` prior. Example:
+Before starting, prepare your restricted words list, then put it's path
+into the environment variable `WORDLE_LIST` prior. Example:
 ```sh
 grep '^[a-z][a-z][a-z][a-z][a-z]$' /usr/share/dict/words > myguess
 WORDLE_LIST=myguess wsa.sh
 ```
+Note that:
+
+  - Your words list should be all lowercase… otherwise use `-i` to make the
+    searches case insentive.
+  - If this environment variable is empty or unset, the script will go with
+    system global dictionary which also contains names with title-case. That
+    leads to some strange results that cannot be easely fixed.
+  - You may use `-d` to display some internal informations before the results.
+
 By the same way, you can change the number of propositions displayed with
 the environment variable `WORDLE_SHOW`.
 
 Here, with `myguess` having 8497 entries (but without: bailo, bauld and
-baulk), the arguments `'ba---' '--l--' 'cresmy'` found out:
+baulk), the arguments `'ba...' '..l..' 'cresmy'` found out:
 ```txt
 babul
 bakal
