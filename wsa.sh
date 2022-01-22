@@ -40,18 +40,20 @@ if test -z "$2"
 then
     echo "Please enter your guess but with only badly placed letters."
     echo "E.g, write .EA... when only those two are yellow for MEANS"
+    echo "But write .E[AY]... if Y can't be in third position either."
     printf '%s\t' "Good Guess?"
     read -r _where
 else
     _where="$2"
 fi
 _where=$( echo "$_where" |
-    awk '{ gsub(/[^[:alpha:]]/, ".", $0); print tolower($0); }' )
+    awk '{ gsub(/[^[:alpha:]\[\]]/, ".", $0); print tolower($0); }' )
 
 if test -z "$3"
 then
     echo "Please list together all known not used letters."
     echo "E.g, write SCRP when those four are greyed for SCRAP"
+    echo "But write SCRPGKL if GKL was previously greyed also."
     printf '%s\t' "Bad Letters?"
     read -r _avoid
 else
@@ -61,16 +63,49 @@ _avoid=$( echo "$_avoid" |
     awk '{ gsub(/[^[:alpha:]]/, "", $0); print tolower($0); }' |
     tr -s '[a-z]' )
 
+_limit=$( echo "$_where" | grep -os '\[\|\]' | grep -c '.' )
 if test -n "$_avoid"
 then
     _where=$( echo "$_where....." |
-        awk "{ gsub(/[$_avoid]/, \"\", \$0); print substr(\$0,0,5); }" )
+        awk "{ gsub(/[$_avoid]/, \"\", \$0); print substr(\$0,0,$(( _limit + 6 ))); }" )
 else
     _where=$( echo "$_where....." |
-        awk '{ print substr($0,0,5); }' )
+        awk -v L=$(( _limit + 6 )) '{ print substr($0,0,L); }' )
 fi
-_where=$( echo "$_where" |
-    awk '{ gsub(/[^[:alpha:]]/, ".", $0); gsub(/[^.]/, "[^&]", $0); print $0; }' )
+# note: AWK doesn't support look-ahead or look-behind since it uses POSIX ERE
+# to work with captured-groups GAWK has `gensub()` which is not POSIX helas
+# in another hand, back-references are POSIX BRE feature not in POSIX ERE...
+# (it's strange and funny that busybox awk does support that feature)
+_fixup=''
+_limit=0
+for _char1 in $( echo "$_where" | grep -os '.' )
+do
+    case "$_char1" in
+        '[')
+            _limit=$(( _limit + 1 ))
+            _fixup="$_fixup["
+            ;;
+        ']')
+            _limit=$(( _limit - 1 ))
+            _fixup="$_fixup]"
+            ;;
+        [.-])
+            _fixup="$_fixup."
+            ;;
+        *)
+            if test $((_limit)) -gt 0
+            then
+                _fixup="$_fixup$_char1"
+            else
+                _fixup="$_fixup[$_char1]"
+            fi
+            ;;
+    esac
+done
+unset _limit
+_where=$( echo "$_fixup" |
+    awk '{ gsub(/\[\]/, ".", $0); gsub(/\[/, "[^", $0); print $0; }' )
+unset _fixup
 _there=$( echo "$_where" |
     awk '{ gsub(/[^[:alpha:]]/, "", $0); print tolower($0); }' |
     tr -s '[a-z]' )
@@ -143,12 +178,12 @@ then
     _needs=''
     _query="sort -b$_flagS '$WORDLE_LIST' | grep -w$_flagI '$_start'"
     _query="$_query | grep -isv '[$_avoid]'"
-    for _char1 in $( echo "$_there" | grep -o '.' )
+    for _char1 in $( echo "$_there" | grep -os '.' )
     do
         _needs="$_needs $_char1"
         _query="$_query | grep -$_flagI '$_char1'"
     done
-    _infos "^$_start\$ $_where$_needs [^$_avoid]" 'green yellow gray'
+    _infos "^$_start\$ $_where$_needs [^$_avoid]" 'traffic lights'
     unset _needs
     # `eval`ing is bad practice because of security concerns; but
     # > sort -b$_flagS "$WORDLE_LIST" |
@@ -156,7 +191,8 @@ then
     # >    grep -is -m $WORDLE_SHOW "$_where"
     # and similar aren't working (`cmd | $var | $var` is OK by itself.
     # Pipe in variables however make the thing fail. shell pitfails...)
-    eval "$_query | grep -is -m $WORDLE_SHOW '$_where'"
+    _where=$( echo "$_where" | tr -d '^' )
+    eval "$_query | grep -isv -m $WORDLE_SHOW '$_where'"
     unset _query
 elif test ${#_there} -eq 5 &&
     test -z "$_avoid"
