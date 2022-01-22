@@ -27,7 +27,7 @@ test "$_flagI" = 'is' &&
 if test $# -lt 2
 then
     echo "Please enter your guess but with only correctly placed letters."
-    echo "E.g, write BA--- when only those two are green for BAULD"
+    echo "E.g, write BA... when only those two are green for BAULD"
     printf '%s\t' "Good Catch?"
     read -r _start
 else
@@ -39,7 +39,7 @@ _start=$( echo "$_start....." |
 if test -z "$2"
 then
     echo "Please enter your guess but with only badly placed letters."
-    echo "E.g, write EA when only those two are yellow for WEAVE"
+    echo "E.g, write .EA... when only those two are yellow for MEANS"
     printf '%s\t' "Good Guess?"
     read -r _where
 else
@@ -58,7 +58,8 @@ else
     _avoid="$3"
 fi
 _avoid=$( echo "$_avoid" |
-    awk '{ gsub(/[^[:alpha:]]/, "", $0); print tolower($0); }' )
+    awk '{ gsub(/[^[:alpha:]]/, "", $0); print tolower($0); }' |
+    tr -s '[a-z]' )
 
 if test -n "$_avoid"
 then
@@ -71,7 +72,8 @@ fi
 _where=$( echo "$_where" |
     awk '{ gsub(/[^[:alpha:]]/, ".", $0); gsub(/[^.]/, "[^&]", $0); print $0; }' )
 _there=$( echo "$_where" |
-    awk '{ gsub(/[^[:alpha:]]/, "", $0); print tolower($0); }' )
+    awk '{ gsub(/[^[:alpha:]]/, "", $0); print tolower($0); }' |
+    tr -s '[a-z]' )
 
 if test -z "$WORDLE_LIST"
 then
@@ -126,7 +128,7 @@ then
     # > e s i a r n  t o l c d u  g p m k h b  y f v w z x  q j
     _there='esiarntolcdugpmkhbyfvw'
     _avoid='zxqj'
-    _infos "$_start [$_there] [^$_avoid]" 'nothing yet'
+    _infos "^$_start\$ [$_there] [^$_avoid]" 'nothing yet'
     # It's not mentionned, but we also avoid consecutive letters
     sort -b$_flagS "$WORDLE_LIST" |
         grep -w$_flagI "$_start" |
@@ -138,35 +140,55 @@ elif test -n "$_there" &&
     test -n "$_avoid"
 then
     # Case of second and following generic attempts
-    _infos "$_start $_where [$_there] [^$_avoid]" 'green yellow gray'
-    sort -b$_flagS "$WORDLE_LIST" |
-        grep -w$_flagI "$_start" |
-        grep -isv "[$_avoid]" | grep -$_flagI "[$_there]" |
-        grep -is -m $WORDLE_SHOW "$_where"
+    _needs=''
+    _query="sort -b$_flagS '$WORDLE_LIST' | grep -w$_flagI '$_start'"
+    _query="$_query | grep -isv '[$_avoid]'"
+    for _char1 in $( echo "$_there" | grep -o '.' )
+    do
+        _needs="$_needs $_char1"
+        _query="$_query | grep -$_flagI '$_char1'"
+    done
+    _infos "^$_start\$ $_where$_needs [^$_avoid]" 'green yellow gray'
+    unset _needs
+    # `eval`ing is bad practice because of security concerns; but
+    # > sort -b$_flagS "$WORDLE_LIST" |
+    # >    grep -w$_flagI "$_start" | $_query |
+    # >    grep -is -m $WORDLE_SHOW "$_where"
+    # and similar aren't working (`cmd | $var | $var` is OK by itself.
+    # Pipe in variables however make the thing fail. shell pitfails...)
+    eval "$_query | grep -is -m $WORDLE_SHOW '$_where'"
+    unset _query
 elif test ${#_there} -eq 5 &&
     test -z "$_avoid"
 then
     # We have only misplaced letters, so let's focus on them.
-    _infos "$_start $_where [$_there]" 'yellow only'
+    _needs=''
+    for _char1 in $( echo "$_there" | grep -o '.' )
+    do
+        _needs="$_needs $_char1"
+    done
+    _infos "^$_start\$ $_where$_needs" 'yellow only'
+    unset _needs
     grep -w$_flagI "$_start" "$WORDLE_LIST" |
-        grep -$_flagI "[$_there]" |
+        grep -v$_flagI "[^$_there]" |
         grep -is -m $WORDLE_SHOW "$_where"
-elif test ${#_avoid} -eq 5 &&
+elif test -n "$_avoid" &&
     test -z "$_there"
 then
     # We have only invalid letters, so rerun avoiding them.
-    _infos "$_start [^$_avoid]" 'gray only'
+    # Or well placed and invalid letters, same recipe then.
+    _infos "^$_start\$ [^$_avoid]" 'no yellow'
     sort -b$_flagS "$WORDLE_LIST" |
-        grep -v$_flagI "[$_avoid]" |
+        grep -ivs "[$_avoid]" |
         grep -w$_flagI -m $WORDLE_SHOW "$_start"
 elif echo "$_start" | grep -qsv -f '.' &&
     test "$_avoid" = "$_there"
 then
     # Really? Aren't you kidding the script?
-    _infos "$_start" 'green only'
+    _infos "^$_start\$" 'green only'
     grep -w$_flagI "$_start" -m $WORDLE_SHOW "$WORDLE_LIST"
 else
     # Hmm, this part shouldn't never be reached. Debug is needed.
-    _infos "$_start/$_where/$_there/$_avoid" 'unknown'
+    _infos "^$_start\$ $_where [$_there] [^$_avoid]" 'unknown'
     echo "Fatal, can't process this. Please fill an issue." >&2
 fi
