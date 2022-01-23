@@ -5,9 +5,9 @@
 # atom: set usesofttabs tabLength=4 encoding=utf-8 lineEnding=lf grammar=shell;
 # mode: shell; tabsoft; tab:4; encoding: utf-8; coding: utf-8;
 ##########################################################################
-# $1: guess with correct (green) letters
+# $1: guess with correct (green/red) letters
 # $2: guess with misplaced (yellow) letters
-# $3: excluded (gray) letters list
+# $3: excluded (gray/blue) letters list
 
 _flagD='0'
 _flagI='s'
@@ -24,6 +24,11 @@ shift $((OPTIND -1))
 test "$_flagI" = 'is' &&
     _flagS="f$_flagS"
 
+if test $((WORDLE_SIZE)) -lt 4
+then
+    WORDLE_SIZE=5
+fi
+
 if test $# -lt 2
 then
     echo "Please enter your guess but with only correctly placed letters."
@@ -33,8 +38,9 @@ then
 else
     _start="$1"
 fi
-_start=$( echo "$_start....." |
-    awk '{ gsub(/[^[:alpha:]]/, ".", $0); print tolower(substr($0,0,5)); }' )
+_start=$( echo "$_start....................." |
+    awk -v L=$(( WORDLE_SIZE )) \
+    '{ gsub(/[^[:alpha:]]/, ".", $0); print tolower(substr($0,0,L)); }' )
 
 if test -z "$2"
 then
@@ -66,11 +72,12 @@ _avoid=$( echo "$_avoid" |
 _limit=$( echo "$_where" | grep -os '\[\|\]' | grep -c '.' )
 if test -n "$_avoid"
 then
-    _where=$( echo "$_where....." |
-        awk "{ gsub(/[$_avoid]/, \"\", \$0); print substr(\$0,0,$(( _limit + 6 ))); }" )
+    _where=$( echo "$_where....................." |
+        awk "{ gsub(/[$_avoid]/, \"\", \$0); print substr(\$0,0,$(( _limit + WORDLE_SIZE ))); }" )
 else
-    _where=$( echo "$_where....." |
-        awk -v L=$(( _limit + 6 )) '{ print substr($0,0,L); }' )
+    _where=$( echo "$_where....................." |
+        awk -v L=$(( _limit + WORDLE_SIZE )) \
+        '{ print substr($0,0,L); }' )
 fi
 # note: AWK doesn't support look-ahead or look-behind since it uses POSIX ERE
 # to work with captured-groups GAWK has `gensub()` which is not POSIX helas
@@ -191,8 +198,7 @@ then
     # >    grep -is -m $WORDLE_SHOW "$_where"
     # and similar aren't working (`cmd | $var | $var` is OK by itself.
     # Pipe in variables however make the thing fail. shell pitfails...)
-    _where=$( echo "$_where" | tr -d '^' )
-    eval "$_query | grep -isv -m $WORDLE_SHOW '$_where'"
+    eval "$_query | grep -is -m $WORDLE_SHOW '$_where'"
     unset _query
 elif test ${#_there} -eq 5 &&
     test -z "$_avoid"
